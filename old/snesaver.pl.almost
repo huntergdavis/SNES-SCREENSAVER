@@ -1,0 +1,72 @@
+#!/usr/bin/perl
+
+use File::Find;
+
+$runnin = 1;
+
+#global storage for gamevids list
+my @gamevids=();
+
+$debugmode = 0;
+
+# our Wanted function should push files only into gamevids
+sub Wanted
+{
+        # gotta be a file
+        push(@gamevids,$_) if (-f "$_");
+
+        if($debugmode > 0)
+        {
+                print $_ , "\n" if (-f "$_"); # print all files found
+        }
+}
+
+sub termHandler {
+	local($sig) = @_;
+	print "signal: " . $sig . " \n";
+	$runnin = 0;
+	system "killall zsnes32";
+	exit(1);
+}
+
+sub dummyHandler {
+	local($sig) = @_;
+	$runnin = 0;
+	print "signal: " . $sig . " \n";
+}
+
+$SIG{TERM} = \&termHandler;
+
+# First, get all our saved game sessions
+$dir = '/home/hunter/projects/SNES-SCREENSAVER/gamevids/';
+$File::Find::no_chdir = 1;
+find( { wanted => \&Wanted, no_chdir => 1} , $dir);
+
+# how many sessions do we have
+$numvids = @gamevids;
+if ($debugmode == 1){
+        print "$numvids", "\n";
+}
+
+
+# keep spinning till we die
+	while ($runnin == 1){
+		# our processing kernel
+		$random_num = int(rand($numvids));
+		$cmdline = "zsnes32 -dd -k 1 -r 0 -z -m -mc -v 22 -zm 0 " . @gamevids[$random_num] . "  ";
+
+		$grpcmd = "ps -ef | grep zsnes32";
+		$result = `$grpcmd`;
+		# print "result: " . $result . " \n";
+		if ($result == ""){
+			$SIG{TERM} = \&dummyHandler;
+			system $cmdline;
+			system "xscreensaver-command -deactivate";
+			system "xscreensaver -command -activate";
+			$SIG{TERM} = \&termHandler;
+		}
+		
+		if($debugmode == 1){
+		        print "\n", $cmdline, "\n";
+		}
+	}
